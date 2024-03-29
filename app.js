@@ -2,8 +2,8 @@ require("dotenv").config();
 
 const express = require("express");
 const hbs = require("hbs");
+const path = require("path");
 
-// require spotify-web-api-node package here:
 const SpotifyWebApi = require("spotify-web-api-node");
 
 const app = express();
@@ -11,6 +11,7 @@ const app = express();
 app.set("view engine", "hbs");
 app.set("views", __dirname + "/views");
 app.use(express.static(__dirname + "/public"));
+hbs.registerPartials(path.join(__dirname, "views/partials"));
 
 // setting the spotify-api goes here:
 const spotifyApi = new SpotifyWebApi({
@@ -26,16 +27,75 @@ spotifyApi
     console.log("Something went wrong when retrieving an access token", error)
   );
 // Our routes go here:
-app.get("/home", (request, response, next) =>
-  response.sendFile(__dirname + "/views/home.html")
-);
+app.get("/home", (request, response, next) => response.render("index"));
 
 app.get("/artist-search", (request, response, next) => {
+  let artistDetails;
+  console.log(request.query.query);
   spotifyApi
-    .searchArtists(/*'HERE GOES THE QUERY ARTIST'*/)
+    .searchArtists(request.query.query)
     .then((data) => {
-      console.log("The received data from the API: ", data.body);
-      // ----> 'HERE'S WHAT WE WANT TO DO AFTER RECEIVING THE DATA FROM THE API'
+      let myArr = data.body.artists.items;
+      let newArr = [];
+      myArr.forEach((item) => {
+        let myObj = {};
+        myObj.name = item.name;
+        myObj.image = item.images[0];
+        myObj.id = item.id;
+        newArr.push(myObj);
+      });
+      return newArr;
+    })
+    .then((artistDetails) => {
+      console.log(artistDetails);
+      return response.render("artist-search-results", { artistDetails });
+    })
+    .catch((err) =>
+      console.log("The error while searching artists occurred: ", err)
+    );
+});
+
+app.get("/albums/:artistId", (req, res, next) => {
+  spotifyApi
+    .getArtistAlbums(req.params.artistId)
+    .then((data) => {
+      let myArr = data.body.items;
+      let newArr = [];
+      myArr.forEach((item) => {
+        let myObj = {};
+        myObj.name = item.name;
+        myObj.image = item.images[0];
+        myObj.id = item.id;
+        newArr.push(myObj);
+      });
+      return newArr;
+    })
+    .then((albumDetails) => {
+      console.log(albumDetails);
+      return res.render("albums", { albumDetails });
+    })
+    .catch((err) =>
+      console.log("The error while searching artists occurred: ", err)
+    );
+});
+
+app.get("/tracks/:albumId", (req, res, next) => {
+  spotifyApi
+    .getAlbumTracks(req.params.albumId, { limit: 5, offset: 1 })
+    .then((data) => {
+      let myArr = data.body.items;
+      let newArr = [];
+      myArr.forEach((item) => {
+        let myObj = {};
+        myObj.name = item.name;
+        myObj.preview_url = item.preview_url;
+        newArr.push(myObj);
+      });
+      return newArr;
+    })
+    .then((trackDetails) => {
+      console.log(trackDetails);
+      return res.render("tracks", { trackDetails });
     })
     .catch((err) =>
       console.log("The error while searching artists occurred: ", err)
